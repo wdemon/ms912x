@@ -54,19 +54,19 @@ ms912x_driver_gem_prime_import(struct drm_device *dev, struct dma_buf *dma_buf)
 DEFINE_DRM_GEM_FOPS(ms912x_driver_fops);
 
 static const struct drm_driver driver = {
-	.driver_features = DRIVER_ATOMIC | DRIVER_GEM | DRIVER_MODESET,
+        .driver_features = DRIVER_ATOMIC | DRIVER_GEM | DRIVER_MODESET,
 
-	/* GEM hooks */
-	.fops = &ms912x_driver_fops,
-	DRM_GEM_SHMEM_DRIVER_OPS,
-	.gem_prime_import = ms912x_driver_gem_prime_import,
+        /* GEM hooks */
+        .fops = &ms912x_driver_fops,
+        DRM_GEM_SHMEM_DRIVER_OPS,
+        .gem_prime_import = ms912x_driver_gem_prime_import,
 
-	.name = DRIVER_NAME,
-	.desc = DRIVER_DESC,
-	.date = DRIVER_DATE,
-	.major = DRIVER_MAJOR,
-	.minor = DRIVER_MINOR,
-	.patchlevel = DRIVER_PATCHLEVEL,
+        .name = DRIVER_NAME,
+        .desc = DRIVER_DESC,
+        /* .date field removed in Linux 6.16+ */
+        .major = DRIVER_MAJOR,
+        .minor = DRIVER_MINOR,
+        .patchlevel = DRIVER_PATCHLEVEL,
 };
 
 static const struct drm_mode_config_funcs ms912x_mode_config_funcs = {

@@ -5,6 +5,7 @@
 #include <linux/workqueue.h> // FIX: workqueue support
 #include <linux/completion.h> // FIX: completion primitives
 #include <linux/timer.h> // FIX: for timer_list/from_timer/del_timer_sync
+#include <linux/container_of.h> // Fallback for from_timer when unavailable
 #include <linux/slab.h> // FIX: kmalloc/kfree helpers
 
 #include <drm/drm_drv.h>
@@ -12,10 +13,15 @@
 
 #include "ms912x.h"
 
+/* In some kernel versions from_timer() is not available, provide a fallback */
+#ifndef from_timer
+#define from_timer(var, timer, field) container_of(timer, typeof(*var), field)
+#endif
+
 static void ms912x_request_timeout(struct timer_list *t)
 {
-	struct ms912x_usb_request *request = from_timer(request, t, timer);
-	usb_sg_cancel(&request->sgr);
+        struct ms912x_usb_request *request = from_timer(request, t, timer);
+        usb_sg_cancel(&request->sgr);
 }
 
 static void ms912x_request_work(struct work_struct *work)
