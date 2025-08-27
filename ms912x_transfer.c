@@ -4,19 +4,14 @@
 #include <linux/iosys-map.h> // FIX: required for iosys_map_memcpy_from
 #include <linux/workqueue.h> // FIX: workqueue support
 #include <linux/completion.h> // FIX: completion primitives
-#include <linux/timer.h> // FIX: for timer_list/from_timer/del_timer_sync
-#include <linux/container_of.h> // Fallback for from_timer when unavailable
+#include <linux/timer.h> // FIX: for timer_list
 #include <linux/slab.h> // FIX: kmalloc/kfree helpers
 
 #include <drm/drm_drv.h>
 #include <drm/drm_gem_framebuffer_helper.h>
 
 #include "ms912x.h"
-
-/* In some kernel versions from_timer() is not available, provide a fallback */
-#ifndef from_timer
-#define from_timer(var, timer, field) container_of(timer, typeof(*var), field)
-#endif
+#include "ms912x_compat.h" // REPLACEMENT: compatibility helpers
 
 static void ms912x_request_timeout(struct timer_list *t)
 {
@@ -38,9 +33,9 @@ static void ms912x_request_work(struct work_struct *work)
 		    transfer_sgt->sgl, transfer_sgt->nents,
 		    request->transfer_len, GFP_KERNEL);
 	mod_timer(&request->timer, jiffies + msecs_to_jiffies(5000));
-	usb_sg_wait(sgr);
-	del_timer_sync(&request->timer);
-	complete(&request->done);
+        usb_sg_wait(sgr);
+        ms912x_del_timer_sync(&request->timer); // REPLACEMENT: safe timer delete
+        complete(&request->done);
 }
 
 void ms912x_free_request(struct ms912x_usb_request *request)
