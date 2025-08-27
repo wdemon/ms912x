@@ -250,9 +250,16 @@ static int ms912x_usb_probe(struct usb_interface *interface,
                 drm_warn(dev,
                          "buffer sharing not supported"); /* not an error */
 
+        ms912x->wq = alloc_workqueue(DRIVER_NAME "_wq",
+                                     WQ_UNBOUND | WQ_MEM_RECLAIM, 1);
+        if (!ms912x->wq) {
+                ret = -ENOMEM;
+                goto err_put_device;
+        }
+
         ret = drmm_mode_config_init(dev);
         if (ret)
-                goto err_put_device;
+                goto err_destroy_wq;
 
         dev->mode_config.min_width = 0;
         dev->mode_config.max_width = 2048;
@@ -266,7 +273,7 @@ static int ms912x_usb_probe(struct usb_interface *interface,
         ret = ms912x_init_request(ms912x, &ms912x->requests[0],
                                   2048 * 2048 * 2);
         if (ret)
-                goto err_put_device;
+                goto err_destroy_wq;
 
         ret = ms912x_init_request(ms912x, &ms912x->requests[1],
                                   2048 * 2048 * 2);
@@ -308,6 +315,8 @@ err_free_request_1:
         ms912x_free_request(&ms912x->requests[1]);
 err_free_request_0:
         ms912x_free_request(&ms912x->requests[0]);
+err_destroy_wq:
+        destroy_workqueue(ms912x->wq);
 err_put_device:
         if (ms912x->dmadev)
                 put_device(ms912x->dmadev);
@@ -331,6 +340,7 @@ static void ms912x_usb_disconnect(struct usb_interface *interface)
 
         cancel_work_sync(&ms912x->requests[0].work);
         cancel_work_sync(&ms912x->requests[1].work);
+        destroy_workqueue(ms912x->wq);
         drm_kms_helper_poll_fini(dev);
         drm_dev_unplug(dev);
         drm_atomic_helper_shutdown(dev);

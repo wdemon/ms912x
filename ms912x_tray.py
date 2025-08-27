@@ -4,9 +4,9 @@
 import sys
 import subprocess
 
-from PyQt5.QtCore import QTimer
-from PyQt5.QtGui import QIcon, QPixmap, QColor, QPainter
-from PyQt5.QtWidgets import QApplication, QSystemTrayIcon, QMenu
+from PyQt6.QtCore import QTimer
+from PyQt6.QtGui import QIcon, QPixmap, QColor, QPainter
+from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
 
 DRIVER_NAME = "ms912x"
 
@@ -21,12 +21,11 @@ def driver_loaded() -> bool:
 
 
 def unload_driver() -> None:
-    """Attempt to unload the ms912x module using pkexec."""
+    """Attempt to unload the ms912x module."""
     try:
         subprocess.run(["pkexec", "rmmod", DRIVER_NAME], check=False)
     except FileNotFoundError:
-        # pkexec not available
-        pass
+        subprocess.run(["rmmod", DRIVER_NAME], check=False)
 
 
 class Tray:
@@ -34,10 +33,8 @@ class Tray:
         self.app = QApplication(sys.argv)
         self.tray = QSystemTrayIcon(self._create_icon(), self.app)
         menu = QMenu()
-        unload_action = menu.addAction("Выгрузить драйвер")
-        unload_action.triggered.connect(self.on_unload)
-        exit_action = menu.addAction("Выход")
-        exit_action.triggered.connect(self.app.quit)
+        exit_action = menu.addAction("Выйти")
+        exit_action.triggered.connect(self.on_exit)
         self.tray.setContextMenu(menu)
         self.tray.show()
         # Periodically check if the module is still loaded
@@ -55,7 +52,7 @@ class Tray:
         painter.end()
         return QIcon(pix)
 
-    def on_unload(self):
+    def on_exit(self):
         unload_driver()
         self.app.quit()
 
@@ -64,7 +61,7 @@ class Tray:
             self.app.quit()
 
     def run(self):
-        self.app.exec_()
+        self.app.exec()
 
 
 if __name__ == "__main__":

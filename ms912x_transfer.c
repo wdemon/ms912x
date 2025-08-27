@@ -36,7 +36,7 @@ static void ms912x_request_work(struct work_struct *work)
 		    request->transfer_len, GFP_KERNEL);
 	mod_timer(&request->timer, jiffies + msecs_to_jiffies(5000));
         usb_sg_wait(sgr);
-        ms912x_del_timer_sync(&request->timer); // REPLACEMENT: safe timer delete
+        ms912x_del_timer_sync(&request->timer, ms912x->wq); /* safe timer delete */
         complete(&request->done);
 }
 
@@ -233,8 +233,8 @@ int ms912x_fb_send_rect(struct drm_framebuffer *fb, const struct iosys_map *map,
 		goto dev_exit;
 	}
 
-	current_request->transfer_len = width * 2 * drm_rect_height(rect) + 16;
-	queue_work(system_long_wq, &current_request->work);
+        current_request->transfer_len = width * 2 * drm_rect_height(rect) + 16;
+        queue_work(ms912x->wq, &current_request->work);
 	ms912x->current_request = 1 - ms912x->current_request;
 dev_exit:
         drm_dev_exit(idx); // FIX: paired with drm_dev_enter
