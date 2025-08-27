@@ -7,7 +7,6 @@
 #include <drm/drm_damage_helper.h>
 #include <drm/drm_drv.h>
 #include <drm/drm_fb_helper.h> // FIX: ensure fb helper available
-// TODO: include <drm/drm_fbdev_generic.h> when available
 #include <drm/drm_file.h>
 #include <drm/drm_gem_atomic_helper.h>
 #include <drm/drm_gem_framebuffer_helper.h>
@@ -19,6 +18,7 @@
 #include <drm/drm_simple_kms_helper.h>
 
 #include "ms912x.h"
+#include "ms912x_compat.h" // REPLACEMENT: compatibility helpers
 
 static int ms912x_usb_suspend(struct usb_interface *interface,
 			      pm_message_t message)
@@ -280,8 +280,7 @@ static int ms912x_usb_probe(struct usb_interface *interface,
 	if (ret)
 		goto err_free_request_1;
 
-        // TODO: enable fbdev emulation with drm_fbdev_generic_setup()
-        // drm_fbdev_generic_setup(dev, 0);
+        ms912x_fbdev_setup(dev); // REPLACEMENT: optional fbdev setup
 
 	return 0;
 
