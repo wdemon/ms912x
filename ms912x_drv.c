@@ -122,7 +122,7 @@ ms912x_get_mode(const struct drm_display_mode *mode)
                         return &ms912x_mode_list[i];
                 }
         }
-        /* Unknown mode */
+        /* Unknown mode: indicate absence instead of an error pointer */
         return NULL;
 }
 
@@ -205,12 +205,11 @@ static void ms912x_pipe_update(struct drm_simple_display_pipe *pipe,
 }
 
 static const struct drm_simple_display_pipe_funcs ms912x_pipe_funcs = {
+        DRM_GEM_SIMPLE_DISPLAY_PIPE_SHADOW_PLANE_FUNCS,
         .enable = ms912x_pipe_enable,
         .disable = ms912x_pipe_disable,
         .check = ms912x_pipe_check,
         .mode_valid = ms912x_pipe_mode_valid,
-        .prepare_fb = drm_gem_simple_display_pipe_prepare_fb,
-        .cleanup_fb = drm_gem_simple_display_pipe_cleanup_fb,
         .update = ms912x_pipe_update,
 };
 
