@@ -20,8 +20,12 @@
 #include "ms912x.h"
 #include "ms912x_compat.h" // REPLACEMENT: compatibility helpers
 
+/* Forward declaration to satisfy enable() calling update() */
+static void ms912x_pipe_update(struct drm_simple_display_pipe *pipe,
+                               struct drm_plane_state *old_state);
+
 static int ms912x_usb_suspend(struct usb_interface *interface,
-			      pm_message_t message)
+                              pm_message_t message)
 {
 	struct drm_device *dev = usb_get_intfdata(interface);
 
@@ -252,21 +256,23 @@ static void ms912x_pipe_update(struct drm_simple_display_pipe *pipe,
         struct drm_plane_state *state = pipe->plane.state;
         struct drm_framebuffer *fb = state->fb;
         struct ms912x_device *ms912x;
-        struct drm_rect rect;
-        struct iosys_map map;
-        size_t size;
-        int ret;
-        bool full;
+       struct drm_rect rect;
+       struct iosys_map map;
+       size_t size;
+       struct drm_gem_object *obj;
+       int ret;
+       bool full;
 
         if (!fb)
                 return;
 
         ms912x = to_ms912x(fb->dev);
 
-        pr_info("ms912x: update pitch=%u format=%p4cc handle=%u\n",
-                fb->pitches[0], &fb->format->format, fb->handles[0]);
+       obj = drm_gem_fb_get_obj(fb, 0);
+       pr_info("ms912x: update pitch=%u format=%p4cc handle=%u\n",
+               fb->pitches[0], &fb->format->format, obj->handle);
 
-        ret = drm_gem_fb_vmap(fb, &map);
+       ret = drm_gem_fb_vmap(fb, &map, 0);
         if (ret) {
                 drm_err(fb->dev, "vmap failed: %d\n", ret);
                 return;
@@ -283,42 +289,19 @@ static void ms912x_pipe_update(struct drm_simple_display_pipe *pipe,
                 pr_info("ms912x: damage (%d,%d)-(%d,%d)\n",
                         rect.x1, rect.y1, rect.x2, rect.y2);
 
-        size = fb->pitches[0] * fb->height;
-        ms912x_transfer_framebuffer(ms912x, map.vaddr[0], size);
+       size = fb->pitches[0] * fb->height;
+       ms912x_transfer_framebuffer(ms912x, map.vaddr, size);
 
-        drm_gem_fb_vunmap(fb, &map);
+       drm_gem_fb_vunmap(fb, &map);
 }
-
-static int ms912x_pipe_prepare_fb(struct drm_simple_display_pipe *pipe,
-                                  struct drm_plane_state *plane_state)
-{
-        struct drm_device *dev = pipe->crtc.dev;
-        int ret;
-
-        drm_dbg(dev, "prepare_fb\n");
-
-        ret = drm_gem_simple_display_pipe_prepare_fb(pipe, plane_state);
-        if (ret)
-                drm_err(dev, "prepare_fb failed: %d\n", ret);
-
-        return ret;
-}
-
-static void ms912x_pipe_cleanup_fb(struct drm_simple_display_pipe *pipe,
-                                   struct drm_plane_state *plane_state)
-{
-        drm_dbg(pipe->crtc.dev, "cleanup_fb\n");
-        drm_gem_simple_display_pipe_cleanup_fb(pipe, plane_state);
-}
-
 static const struct drm_simple_display_pipe_funcs ms912x_pipe_funcs = {
-        .prepare_fb = ms912x_pipe_prepare_fb,
-        .cleanup_fb = ms912x_pipe_cleanup_fb,
-        .enable = ms912x_pipe_enable,
-        .disable = ms912x_pipe_disable,
-        .check = ms912x_pipe_check,
-        .mode_valid = ms912x_pipe_mode_valid,
-        .update = ms912x_pipe_update,
+       .prepare_fb = NULL,
+       .cleanup_fb = NULL,
+       .enable = ms912x_pipe_enable,
+       .disable = ms912x_pipe_disable,
+       .check = ms912x_pipe_check,
+       .mode_valid = ms912x_pipe_mode_valid,
+       .update = ms912x_pipe_update,
 };
 
 static const uint32_t ms912x_pipe_formats[] = {
