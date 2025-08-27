@@ -5,6 +5,10 @@
 #include <linux/mm_types.h>
 #include <linux/scatterlist.h>
 #include <linux/usb.h>
+#include <linux/workqueue.h> // FIX: struct work_struct
+#include <linux/timer.h> // FIX: struct timer_list
+#include <linux/completion.h> // FIX: struct completion
+#include <linux/slab.h> // FIX: kzalloc/vmalloc helpers
 
 #include <drm/drm_device.h>
 #include <drm/drm_framebuffer.h>

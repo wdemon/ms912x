@@ -6,8 +6,8 @@
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_damage_helper.h>
 #include <drm/drm_drv.h>
-#include <drm/drm_fb_helper.h>
-#include <drm/drm_fbdev_generic.h> // FIX: use generic fbdev helper
+#include <drm/drm_fb_helper.h> // FIX: ensure fb helper available
+// TODO: include <drm/drm_fbdev_generic.h> when available
 #include <drm/drm_file.h>
 #include <drm/drm_gem_atomic_helper.h>
 #include <drm/drm_gem_framebuffer_helper.h>
@@ -280,7 +280,8 @@ static int ms912x_usb_probe(struct usb_interface *interface,
 	if (ret)
 		goto err_free_request_1;
 
-        drm_fbdev_generic_setup(dev, 0); // FIX: use generic fbdev helper
+        // TODO: enable fbdev emulation with drm_fbdev_generic_setup()
+        // drm_fbdev_generic_setup(dev, 0);
 
 	return 0;
 

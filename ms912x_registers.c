@@ -1,5 +1,7 @@
 
 #include <uapi/linux/hid.h>
+#include <linux/slab.h> // FIX: kzalloc/kfree
+#include <linux/string.h> // FIX: memcpy/memset helpers
 
 #include "ms912x.h"
 
