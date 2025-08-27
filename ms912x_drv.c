@@ -7,7 +7,7 @@
 #include <drm/drm_damage_helper.h>
 #include <drm/drm_drv.h>
 #include <drm/drm_fb_helper.h>
-#include <drm/drm_fbdev_ttm.h>
+#include <drm/drm_fbdev_generic.h> // FIX: use generic fbdev helper
 #include <drm/drm_file.h>
 #include <drm/drm_gem_atomic_helper.h>
 #include <drm/drm_gem_framebuffer_helper.h>
@@ -146,9 +146,9 @@ static void ms912x_pipe_disable(struct drm_simple_display_pipe *pipe)
 	ms912x_power_off(ms912x);
 }
 
-enum drm_mode_status
+static enum drm_mode_status
 ms912x_pipe_mode_valid(struct drm_simple_display_pipe *pipe,
-		       const struct drm_display_mode *mode)
+                       const struct drm_display_mode *mode)
 {
 	const struct ms912x_mode *ret = ms912x_get_mode(mode);
 	if (IS_ERR(ret)) {
@@ -157,9 +157,9 @@ ms912x_pipe_mode_valid(struct drm_simple_display_pipe *pipe,
 	return MODE_OK;
 }
 
-int ms912x_pipe_check(struct drm_simple_display_pipe *pipe,
-		      struct drm_plane_state *new_plane_state,
-		      struct drm_crtc_state *new_crtc_state)
+static int ms912x_pipe_check(struct drm_simple_display_pipe *pipe,
+                             struct drm_plane_state *new_plane_state,
+                             struct drm_crtc_state *new_crtc_state)
 {
 	return 0;
 }
@@ -280,7 +280,7 @@ static int ms912x_usb_probe(struct usb_interface *interface,
 	if (ret)
 		goto err_free_request_1;
 
-	drm_fbdev_ttm_setup(dev, 0);
+        drm_fbdev_generic_setup(dev, 0); // FIX: use generic fbdev helper
 
 	return 0;
 

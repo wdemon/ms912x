@@ -116,5 +116,5 @@ int ms912x_fb_send_rect(struct drm_framebuffer *fb, const struct iosys_map *map,
 
 void ms912x_free_request(struct ms912x_usb_request *request);
 int ms912x_init_request(struct ms912x_device *ms912x,
-			struct ms912x_usb_request *request, size_t len);
-#endif
+                        struct ms912x_usb_request *request, size_t len);
+#endif // MS912X_H
