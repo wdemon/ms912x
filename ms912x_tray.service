@@ -1,0 +1,11 @@
+[Unit]
+Description=MS912X tray utility
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/ms912x_tray.py
+Restart=on-failure
+
+[Install]
+WantedBy=default.target
