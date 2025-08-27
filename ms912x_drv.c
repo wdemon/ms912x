@@ -54,12 +54,39 @@ ms912x_driver_gem_prime_import(struct drm_device *dev, struct dma_buf *dma_buf)
 
 DEFINE_DRM_GEM_FOPS(ms912x_driver_fops);
 
+/*
+ * Wrapper around the generic shmem dumb buffer creator so we can trace
+ * allocations coming from userspace.  This helps to verify that the
+ * framebuffer is actually created and not discarded due to unsupported
+ * flags or pitch alignment issues.
+ */
+static int ms912x_dumb_create(struct drm_file *file_priv, struct drm_device *dev,
+                              struct drm_mode_create_dumb *args)
+{
+        int ret;
+
+        pr_info("ms912x: dumb_create %ux%u bpp=%u\n",
+                args->width, args->height, args->bpp);
+        ret = drm_gem_shmem_dumb_create(file_priv, dev, args);
+        if (ret)
+                pr_err("ms912x: dumb_create failed %d\n", ret);
+        else
+                pr_info("ms912x: dumb_create handle=%u pitch=%u size=%llu\n",
+                        args->handle, args->pitch, args->size);
+        return ret;
+}
+
 static const struct drm_driver driver = {
         .driver_features = DRIVER_ATOMIC | DRIVER_GEM | DRIVER_MODESET,
 
         /* GEM hooks */
         .fops = &ms912x_driver_fops,
+#if defined(DRM_GEM_SHMEM_DRIVER_OPS_WITH_DUMB_CREATE)
+        DRM_GEM_SHMEM_DRIVER_OPS_WITH_DUMB_CREATE(ms912x_dumb_create),
+#else
         DRM_GEM_SHMEM_DRIVER_OPS,
+        .dumb_create = ms912x_dumb_create,
+#endif
         .gem_prime_import = ms912x_driver_gem_prime_import,
 
         .name = DRIVER_NAME,
@@ -70,10 +97,25 @@ static const struct drm_driver driver = {
         .patchlevel = DRIVER_PATCHLEVEL,
 };
 
+static int ms912x_atomic_commit(struct drm_device *dev,
+                                struct drm_atomic_state *state, bool nonblock)
+{
+        int ret;
+
+        drm_dbg(dev, "atomic_commit\n");
+        ret = drm_atomic_helper_commit(dev, state, nonblock);
+        if (!ret) {
+                struct ms912x_device *ms912x = to_ms912x(dev);
+                pr_info("ms912x: commit tail done, dpms=%d\n",
+                        ms912x->connector.dpms);
+        }
+        return ret;
+}
+
 static const struct drm_mode_config_funcs ms912x_mode_config_funcs = {
-	.fb_create = drm_gem_fb_create_with_dirty,
-	.atomic_check = drm_atomic_helper_check,
-	.atomic_commit = drm_atomic_helper_commit,
+        .fb_create = drm_gem_fb_create_with_dirty,
+        .atomic_check = drm_atomic_helper_check,
+        .atomic_commit = ms912x_atomic_commit,
 };
 
 static const struct ms912x_mode ms912x_mode_list[] = {
@@ -139,13 +181,18 @@ static void ms912x_pipe_enable(struct drm_simple_display_pipe *pipe,
         struct drm_rect rect;
         int ret;
 
-        drm_dbg(&ms912x->drm, "pipe enable\n");
+        pr_info("ms912x: pipe_enable enable=%d active=%d\n",
+                crtc_state->enable, crtc_state->active);
 
         ms912x_power_on(ms912x);
+        drm_mode_config_helper_resume(&ms912x->drm);
 
         if (crtc_state->mode_changed) {
                 ms_mode = ms912x_get_mode(mode);
                 if (ms_mode) {
+                        pr_info("ms912x: set mode %dx%d@%d\n",
+                                mode->hdisplay, mode->vdisplay,
+                                drm_mode_vrefresh(mode));
                         ms912x_set_resolution(ms912x, ms_mode);
                 } else {
                         drm_err(&ms912x->drm,
@@ -168,6 +215,9 @@ static void ms912x_pipe_enable(struct drm_simple_display_pipe *pipe,
         if (ret)
                 drm_err(&ms912x->drm,
                         "initial frame transfer failed: %d\n", ret);
+        else
+                pr_info("ms912x: initial frame %dx%d sent\n",
+                        fb->width, fb->height);
 
         ms912x->update_rect = rect;
 }
@@ -237,22 +287,38 @@ static void ms912x_pipe_update(struct drm_simple_display_pipe *pipe,
         struct ms912x_device *ms912x;
         struct drm_rect current_rect, rect;
 
-        ms912x = to_ms912x(state->fb->dev);
-        drm_dbg(&ms912x->drm, "pipe update\n");
+        if (!state->fb)
+                return;
 
-        if (drm_atomic_helper_damage_merged(old_state, state, &current_rect)) {
-                /* The device double buffers, so we need to send the update
-                 * rects of the last two frames.
-                 */
-                ms912x_merge_rects(&rect, &current_rect, &ms912x->update_rect);
-                if (ms912x_fb_send_rect(state->fb, &shadow_plane_state->data[0],
-                                        &rect)) {
-                        /* In case of error, merge the rects to update later */
-                        ms912x_merge_rects(&ms912x->update_rect,
-                                           &ms912x->update_rect, &rect);
-                } else {
-                        ms912x->update_rect = current_rect;
-                }
+        ms912x = to_ms912x(state->fb->dev);
+        pr_info("ms912x: pipe_update\n");
+
+        if (!drm_atomic_helper_damage_merged(old_state, state, &current_rect)) {
+                /* No damage tracking info, update whole framebuffer */
+                rect.x1 = 0;
+                rect.y1 = 0;
+                rect.x2 = state->fb->width;
+                rect.y2 = state->fb->height;
+                pr_info("ms912x: full frame update %dx%d\n",
+                        state->fb->width, state->fb->height);
+                if (!ms912x_fb_send_rect(state->fb, &shadow_plane_state->data[0],
+                                         &rect))
+                        ms912x->update_rect = rect;
+                return;
+        }
+
+        /* The device double buffers, so we need to send the update rects of
+         * the last two frames.
+         */
+        ms912x_merge_rects(&rect, &current_rect, &ms912x->update_rect);
+        pr_info("ms912x: update rect (%d,%d)-(%d,%d)\n",
+                rect.x1, rect.y1, rect.x2, rect.y2);
+        if (ms912x_fb_send_rect(state->fb, &shadow_plane_state->data[0], &rect)) {
+                /* In case of error, merge the rects to update later */
+                ms912x_merge_rects(&ms912x->update_rect,
+                                   &ms912x->update_rect, &rect);
+        } else {
+                ms912x->update_rect = current_rect;
         }
 }
 
