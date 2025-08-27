@@ -5,8 +5,7 @@
 #include <linux/workqueue.h> // FIX: workqueue support
 #include <linux/completion.h> // FIX: completion primitives
 #include <linux/timer.h> // FIX: for timer_list
-#include <linux/rcupdate.h> // NEW: synchronize_rcu for timer safety
-#include <linux/jiffies.h> // NEW: jiffies helpers for mod_timer
+#include <linux/jiffies.h> // jiffies helpers for mod_timer
 #include <linux/slab.h> // FIX: kmalloc/kfree helpers
 
 #include <drm/drm_drv.h>
@@ -17,7 +16,8 @@
 
 static void ms912x_request_timeout(struct timer_list *t)
 {
-        struct ms912x_usb_request *request = from_timer(request, t, timer);
+        struct ms912x_usb_request *request =
+                container_of(t, struct ms912x_usb_request, timer);
         usb_sg_cancel(&request->sgr);
 }
 
@@ -30,13 +30,13 @@ static void ms912x_request_work(struct work_struct *work)
 	struct usb_sg_request *sgr = &request->sgr;
 	struct sg_table *transfer_sgt = &request->transfer_sgt;
 
-	timer_setup(&request->timer, ms912x_request_timeout, 0);
-	usb_sg_init(sgr, usbdev, usb_sndbulkpipe(usbdev, 0x04), 0,
-		    transfer_sgt->sgl, transfer_sgt->nents,
-		    request->transfer_len, GFP_KERNEL);
-	mod_timer(&request->timer, jiffies + msecs_to_jiffies(5000));
+        timer_setup(&request->timer, ms912x_request_timeout, 0);
+        usb_sg_init(sgr, usbdev, usb_sndbulkpipe(usbdev, 0x04), 0,
+                    transfer_sgt->sgl, transfer_sgt->nents,
+                    request->transfer_len, GFP_KERNEL);
+        mod_timer(&request->timer, jiffies + msecs_to_jiffies(5000));
         usb_sg_wait(sgr);
-        ms912x_del_timer_sync(&request->timer, ms912x->wq); /* safe timer delete */
+        ms912x_shutdown_timer(&request->timer); /* ensure timer stopped */
         complete(&request->done);
 }
 
