@@ -11,6 +11,7 @@
 #include <drm/drm_gem.h>
 #include <drm/drm_simple_kms_helper.h>
 
+#include "ms912x_regs.h" // FIX: include register definitions
 #define DRIVER_NAME "ms912x"
 #define DRIVER_DESC "MacroSilicon USB to VGA/HDMI"
 #define DRIVER_DATE "20220101"

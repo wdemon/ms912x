@@ -91,15 +91,20 @@ static const struct ms912x_mode ms912x_mode_list[] = {
 	MS912X_MODE(1920, 1080, 60, 0x8100, MS912X_PIXFMT_UYVY),
 
 	/* Dumped from the device */
-	MS912X_MODE( 720,  480, 60, 0x0200, MS912X_PIXFMT_UYVY),
-	MS912X_MODE( 720,  576, 60, 0x1100, MS912X_PIXFMT_UYVY),
-	MS912X_MODE( 640,  480, 60, 0x4000, MS912X_PIXFMT_UYVY),
-	MS912X_MODE(1024,  768, 60, 0x4900, MS912X_PIXFMT_UYVY),
-	MS912X_MODE(1280,  600, 60, 0x4e00, MS912X_PIXFMT_UYVY),
-	MS912X_MODE(1280,  768, 60, 0x5400, MS912X_PIXFMT_UYVY),
-	MS912X_MODE(1280, 1024, 60, 0x6100, MS912X_PIXFMT_UYVY),
-	MS912X_MODE(1360,  768, 60, 0x6400, MS912X_PIXFMT_UYVY),
-	MS912X_MODE(1600, 1200, 60, 0x7300, MS912X_PIXFMT_UYVY),
+        MS912X_MODE( 720,  480, 60, 0x0200, MS912X_PIXFMT_UYVY),
+        MS912X_MODE( 720,  576, 50, 0x1100, MS912X_PIXFMT_UYVY), // FIX: correct refresh rate
+        MS912X_MODE( 640,  480, 60, 0x4000, MS912X_PIXFMT_UYVY),
+        MS912X_MODE(1024,  768, 75, 0x4900, MS912X_PIXFMT_UYVY), // FIX: correct refresh rate
+        MS912X_MODE(1280,  600, 60, 0x4e00, MS912X_PIXFMT_UYVY),
+        MS912X_MODE(1280,  768, 60, 0x5400, MS912X_PIXFMT_UYVY),
+        MS912X_MODE(1280, 1024, 75, 0x6100, MS912X_PIXFMT_UYVY), // FIX: correct refresh rate
+        MS912X_MODE(1360,  768, 60, 0x6400, MS912X_PIXFMT_UYVY),
+        MS912X_MODE(1600, 1200, 60, 0x7300, MS912X_PIXFMT_UYVY),
+        MS912X_MODE( 800,  600, 75, 0x4400, MS912X_PIXFMT_UYVY), // FIX: add mode
+        MS912X_MODE(1280,  720, 50, 0x1300, MS912X_PIXFMT_UYVY), // FIX: add mode
+        MS912X_MODE(1280,  768, 75, 0x5600, MS912X_PIXFMT_UYVY), // FIX: add mode
+        MS912X_MODE(1920, 1080, 30, 0x2200, MS912X_PIXFMT_UYVY), // FIX: add mode
+        MS912X_MODE(1920, 1080, 50, 0x1f00, MS912X_PIXFMT_UYVY), // FIX: add mode
 	/* TODO: more mode numbers? */
 };
 
@@ -265,7 +270,7 @@ static int ms912x_usb_probe(struct usb_interface *interface,
 
 	drm_plane_enable_fb_damage_clips(&ms912x->display_pipe.plane);
 
-	drm_mode_config_reset(dev);
+        drm_mode_config_reset(dev); // FIX: correct typo drrm_ -> drm_
 
 	usb_set_intfdata(interface, ms912x);
 

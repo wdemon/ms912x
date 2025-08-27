@@ -6,6 +6,8 @@ ms912x-y := \
 
 obj-m := ms912x.o
 
+ccflags-y += -I$(PWD) # FIX: ensure local headers are found
+
 KVER ?= $(shell uname -r)
 KSRC ?= /lib/modules/$(KVER)/build
 

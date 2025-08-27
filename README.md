@@ -19,7 +19,35 @@ TODOs:
 
 Driver is written by analyzing wireshark captures of the device.
 
+## Build
+
+Run `make` to build the module against the currently running kernel.
+
 ## DKMS
 
-Run `sudo dkms install .`
+To build via DKMS:
+
+```
+sudo dkms add .
+sudo dkms build ms912x/0.1
+sudo dkms install ms912x/0.1
+```
+
+## Loading
+
+You can load the module manually:
+
+```
+sudo insmod ms912x.ko
+```
+
+## Testing
+
+Check kernel logs and connected outputs:
+
+```
+dmesg | grep ms912x
+modetest
+cat /sys/class/drm/*/status
+```
 
