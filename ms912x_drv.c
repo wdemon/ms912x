@@ -287,10 +287,11 @@ static int ms912x_usb_probe(struct usb_interface *interface,
 err_free_request_1:
 	ms912x_free_request(&ms912x->requests[1]);
 err_free_request_0:
-	ms912x_free_request(&ms912x->requests[0]);
+        ms912x_free_request(&ms912x->requests[0]);
 err_put_device:
-	put_device(ms912x->dmadev);
-	return ret;
+        if (ms912x->dmadev) // FIX: release DMA device only if present
+                put_device(ms912x->dmadev); // FIX: drop reference
+        return ret;
 }
 
 static void ms912x_usb_disconnect(struct usb_interface *interface)
@@ -302,11 +303,13 @@ static void ms912x_usb_disconnect(struct usb_interface *interface)
 	cancel_work_sync(&ms912x->requests[1].work);
 	drm_kms_helper_poll_fini(dev);
 	drm_dev_unplug(dev);
-	drm_atomic_helper_shutdown(dev);
-	ms912x_free_request(&ms912x->requests[0]);
-	ms912x_free_request(&ms912x->requests[1]);
-	put_device(ms912x->dmadev);
-	ms912x->dmadev = NULL;
+        drm_atomic_helper_shutdown(dev);
+        ms912x_free_request(&ms912x->requests[0]);
+        ms912x_free_request(&ms912x->requests[1]);
+        if (ms912x->dmadev) { // FIX: ensure DMA device is valid before releasing
+                put_device(ms912x->dmadev); // FIX: drop reference
+                ms912x->dmadev = NULL; // FIX: clear pointer after release
+        }
 }
 
 static const struct usb_device_id id_table[] = {

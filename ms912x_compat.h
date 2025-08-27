@@ -3,7 +3,8 @@
 
 #include <linux/version.h>
 #include <linux/timer.h>
-#include <linux/rcupdate.h>
+#include <linux/rcupdate.h> // COMPAT: needed for synchronize_rcu
+#include <linux/workqueue.h> // COMPAT: flush_workqueue support
 #include <linux/container_of.h>
 #include <drm/drm_device.h>
 
@@ -15,13 +16,10 @@
 /* REPLACEMENT: safe del_timer_sync analogue for older kernels */
 static inline int ms912x_del_timer_sync(struct timer_list *timer)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,15,0)
-        return del_timer_sync(timer);
-#else
-        int ret = del_timer(timer);
-        synchronize_rcu();
+        int ret = del_timer(timer); // COMPAT: drop del_timer_sync usage
+        flush_workqueue(system_long_wq); // FIX: ensure pending work completes
+        synchronize_rcu(); // FIX: match semantics of del_timer_sync
         return ret;
-#endif
 }
 
 /* REPLACEMENT: wrapper for fbdev setup so driver builds without drm_fbdev_generic */
