@@ -41,6 +41,25 @@ You can load the module manually:
 sudo insmod ms912x.ko
 ```
 
+## Tray utility and automatic start
+
+A small PyQt6 tray helper (`ms912x_tray.py`) provides a red status icon and a
+context menu entry to unload the driver.  The utility starts automatically when
+an adapter is plugged in.
+
+To enable the automation copy the files to the appropriate system locations:
+
+```
+sudo install -m644 99-ms912x.rules /etc/udev/rules.d/
+sudo install -m755 ms912x_tray.py /usr/bin/
+sudo install -m644 ms912x_tray.service /usr/lib/systemd/user/
+systemctl --user daemon-reload
+```
+
+The udev rule triggers the `ms912x_tray.service` user unit which launches the
+tray application.  Right‑click the icon and choose *Выйти* to unload the module
+and close the utility.
+
 ## Testing
 
 Check kernel logs and connected outputs:

@@ -399,4 +399,6 @@ static void __exit ms912x_exit(void)
 
 module_init(ms912x_init);
 module_exit(ms912x_exit);
+MODULE_DESCRIPTION("MS912X USB-HDMI video adapter driver");
+MODULE_AUTHOR("wdemon");
 MODULE_LICENSE("GPL");

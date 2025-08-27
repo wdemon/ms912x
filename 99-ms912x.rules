@@ -1,0 +1,5 @@
+# udev rule to launch ms912x tray utility when adapter is connected
+ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="345f", ATTR{idProduct}=="9133", \
+    TAG+="uaccess", ENV{SYSTEMD_USER_WANTS}+="ms912x_tray.service"
+ACTION=="add", SUBSYSTEM=="usb", ATTR{idVendor}=="345f", ATTR{idProduct}=="9132", \
+    TAG+="uaccess", ENV{SYSTEMD_USER_WANTS}+="ms912x_tray.service"
