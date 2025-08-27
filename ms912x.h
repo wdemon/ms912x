@@ -2,13 +2,8 @@
 #ifndef MS912X_H
 #define MS912X_H
 
-#include <linux/mm_types.h>
-#include <linux/scatterlist.h>
 #include <linux/usb.h>
-#include <linux/workqueue.h> // FIX: struct work_struct
-#include <linux/timer.h> // FIX: struct timer_list
-#include <linux/completion.h> // FIX: struct completion
-#include <linux/slab.h> // FIX: kzalloc/vmalloc helpers
+#include <linux/slab.h>
 
 #include <drm/drm_device.h>
 #include <drm/drm_framebuffer.h>
@@ -26,34 +21,16 @@
 
 #define MS912X_TOTAL_URBS 8
 
-struct ms912x_usb_request {
-	void *transfer_buffer;
-	struct ms912x_device *ms912x;
-	size_t transfer_len;
-	size_t alloc_len;
-	struct sg_table transfer_sgt;
-	struct usb_sg_request sgr;
-	struct work_struct work;
-	struct timer_list timer;
-	struct completion done;
-};
-
 struct ms912x_device {
-	struct drm_device drm;
-	struct usb_interface *intf;
-	struct device *dmadev;
+        struct drm_device drm;
+        struct usb_interface *intf;
+        struct device *dmadev;
 
-	struct drm_connector connector;
-	struct drm_simple_display_pipe display_pipe;
-	
-        struct drm_rect update_rect;
+        struct drm_connector connector;
+        struct drm_simple_display_pipe display_pipe;
 
-        /* Double buffer to allow memcpy and transfer
-         * to happen in parallel
-         */
-        int current_request;
-        struct ms912x_usb_request requests[2];
-        struct workqueue_struct *wq; /* dedicated workqueue */
+        /* Last mode set on the device */
+        struct drm_display_mode mode;
 };
 
 struct ms912x_request {
@@ -116,10 +93,6 @@ int ms912x_set_resolution(struct ms912x_device *ms912x,
 int ms912x_power_on(struct ms912x_device *ms912x);
 int ms912x_power_off(struct ms912x_device *ms912x);
 
-int ms912x_fb_send_rect(struct drm_framebuffer *fb, const struct iosys_map *map,
-			struct drm_rect *rect);
-
-void ms912x_free_request(struct ms912x_usb_request *request);
-int ms912x_init_request(struct ms912x_device *ms912x,
-                        struct ms912x_usb_request *request, size_t len);
+int ms912x_transfer_framebuffer(struct ms912x_device *ms912x,
+                                const void *vaddr, size_t size);
 #endif // MS912X_H
