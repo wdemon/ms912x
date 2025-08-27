@@ -8,9 +8,11 @@ int ms912x_read_byte(struct ms912x_device *ms912x, u16 address)
 	int ret;
 	struct usb_interface *intf = ms912x->intf;
 	struct usb_device *usb_dev = interface_to_usbdev(intf);
-	struct ms912x_request *request = kzalloc(8, GFP_KERNEL);
+        struct ms912x_request *request = kzalloc(8, GFP_KERNEL); // FIX: allocate request
+        if (!request)
+                return -ENOMEM; // FIX: handle allocation failure
 
-	request->type = 0xb5;
+        request->type = 0xb5;
 	request->addr = cpu_to_be16(address);
 	usb_control_msg(usb_dev, usb_sndctrlpipe(usb_dev, 0),
 			HID_REQ_SET_REPORT,
@@ -35,9 +37,11 @@ static inline int ms912x_write_6_bytes(struct ms912x_device *ms912x,
 	int ret;
 	struct usb_interface *intf = ms912x->intf;
 	struct usb_device *usb_dev = interface_to_usbdev(intf);
-	struct ms912x_write_request *request = kzalloc(8, GFP_KERNEL);
+        struct ms912x_write_request *request = kzalloc(8, GFP_KERNEL); // FIX: allocate request
+        if (!request)
+                return -ENOMEM; // FIX: handle allocation failure
 
-	request->type = 0xa6;
+        request->type = 0xa6;
 	request->addr = address;
 	memcpy(request->data, data, 6);
 
@@ -56,7 +60,7 @@ int ms912x_power_on(struct ms912x_device *ms912x)
 	memset(data, 0, sizeof(data));
 	data[0] = 0x01;
 	data[1] = 0x02;
-	ret = ms912x_write_6_bytes(ms912x, 0x07, data);
+        ret = ms912x_write_6_bytes(ms912x, MS912X_REG_POWER, data); // FIX: use register macro
 
 	return ret;
 }
@@ -66,7 +70,7 @@ int ms912x_power_off(struct ms912x_device *ms912x)
 	int ret;
 	u8 data[6];
 	memset(data, 0, sizeof(data));
-	ret = ms912x_write_6_bytes(ms912x, 0x07, data);
+        ret = ms912x_write_6_bytes(ms912x, MS912X_REG_POWER, data); // FIX: use register macro
 
 	return ret;
 }
@@ -86,7 +90,7 @@ int ms912x_set_resolution(struct ms912x_device *ms912x,
 	/* ??? Unknown */
 	memset(data, 0, sizeof(data));
 	data[0] = 0;
-	ret = ms912x_write_6_bytes(ms912x, 0x04, data);
+        ret = ms912x_write_6_bytes(ms912x, MS912X_REG_APPLY, data); // FIX: use register macro
 	if (ret < 0)
 		return ret;
 
@@ -97,7 +101,7 @@ int ms912x_set_resolution(struct ms912x_device *ms912x,
 	/* ??? Unknown */
 	memset(data, 0, sizeof(data));
 	data[0] = 0x03;
-	ret = ms912x_write_6_bytes(ms912x, 0x03, data);
+        ret = ms912x_write_6_bytes(ms912x, MS912X_REG_PREP, data); // FIX: use register macro
 	if (ret < 0)
 		return ret;
 
@@ -105,7 +109,7 @@ int ms912x_set_resolution(struct ms912x_device *ms912x,
 	resolution_request.width = cpu_to_be16(width);
 	resolution_request.height = cpu_to_be16(height);
 	resolution_request.pixel_format = cpu_to_be16(pixel_format);
-	ret = ms912x_write_6_bytes(ms912x, 0x01, &resolution_request);
+        ret = ms912x_write_6_bytes(ms912x, MS912X_REG_SET1, &resolution_request); // FIX: use register macro
 	if (ret < 0)
 		return ret;
 
@@ -113,21 +117,21 @@ int ms912x_set_resolution(struct ms912x_device *ms912x,
 	mode_request.mode = cpu_to_be16(mode_num);
 	mode_request.width = cpu_to_be16(width);
 	mode_request.height = cpu_to_be16(height);
-	ret = ms912x_write_6_bytes(ms912x, 0x02, &mode_request);
+        ret = ms912x_write_6_bytes(ms912x, MS912X_REG_SET2, &mode_request); // FIX: use register macro
 	if (ret < 0)
 		return ret;
 
 	/* ??? Unknown */
 	memset(data, 0, sizeof(data));
 	data[0] = 1;
-	ret = ms912x_write_6_bytes(ms912x, 0x04, data);
+        ret = ms912x_write_6_bytes(ms912x, MS912X_REG_APPLY, data); // FIX: use register macro
 	if (ret < 0)
 		return ret;
 
 	/* ??? Unknown */
 	memset(data, 0, sizeof(data));
 	data[0] = 1;
-	ret = ms912x_write_6_bytes(ms912x, 0x05, data);
+        ret = ms912x_write_6_bytes(ms912x, MS912X_REG_COMMIT, data); // FIX: use register macro
 	if (ret < 0)
 		return ret;
 

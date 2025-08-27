@@ -1,6 +1,7 @@
 
 #include <linux/dma-buf.h>
 #include <linux/vmalloc.h>
+#include <linux/iosys-map.h> // FIX: required for iosys_map_memcpy_from
 
 #include <drm/drm_drv.h>
 #include <drm/drm_gem_framebuffer_helper.h>
@@ -203,7 +204,8 @@ int ms912x_fb_send_rect(struct drm_framebuffer *fb, const struct iosys_map *map,
 	current_request = &ms912x->requests[ms912x->current_request];
 	prev_request = &ms912x->requests[1 - ms912x->current_request];
 
-	drm_dev_enter(drm, &idx);
+        if (!drm_dev_enter(drm, &idx)) // FIX: check device is active
+                return -ENODEV;
 
 	ret = drm_gem_fb_begin_cpu_access(fb, DMA_FROM_DEVICE);
 	if (ret < 0)
@@ -217,8 +219,8 @@ int ms912x_fb_send_rect(struct drm_framebuffer *fb, const struct iosys_map *map,
 		goto dev_exit;
 
 	/* Sending frames too fast, drop it */
-	if (!wait_for_completion_timeout(&prev_request->done,
-					 msecs_to_jiffies(10))) {
+        if (!wait_for_completion_timeout(&prev_request->done,
+                                         msecs_to_jiffies(50))) { // FIX: increase timeout
 
 		ret = -ETIMEDOUT;
 		goto dev_exit;
@@ -228,6 +230,6 @@ int ms912x_fb_send_rect(struct drm_framebuffer *fb, const struct iosys_map *map,
 	queue_work(system_long_wq, &current_request->work);
 	ms912x->current_request = 1 - ms912x->current_request;
 dev_exit:
-	drm_dev_exit(idx);
-	return ret;
+        drm_dev_exit(idx); // FIX: paired with drm_dev_enter
+        return ret;
 }
