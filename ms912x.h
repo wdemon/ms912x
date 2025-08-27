@@ -46,13 +46,14 @@ struct ms912x_device {
 	struct drm_connector connector;
 	struct drm_simple_display_pipe display_pipe;
 	
-	struct drm_rect update_rect;
+        struct drm_rect update_rect;
 
-	/* Double buffer to allow memcpy and transfer 
-	 * to happen in parallel
-	 */
-	int current_request;
-	struct ms912x_usb_request requests[2];
+        /* Double buffer to allow memcpy and transfer
+         * to happen in parallel
+         */
+        int current_request;
+        struct ms912x_usb_request requests[2];
+        struct workqueue_struct *wq; /* dedicated workqueue */
 };
 
 struct ms912x_request {
