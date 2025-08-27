@@ -5,6 +5,8 @@
 #include <linux/workqueue.h> // FIX: workqueue support
 #include <linux/completion.h> // FIX: completion primitives
 #include <linux/timer.h> // FIX: for timer_list
+#include <linux/rcupdate.h> // NEW: synchronize_rcu for timer safety
+#include <linux/jiffies.h> // NEW: jiffies helpers for mod_timer
 #include <linux/slab.h> // FIX: kmalloc/kfree helpers
 
 #include <drm/drm_drv.h>
