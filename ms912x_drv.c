@@ -213,123 +213,180 @@ static const uint32_t ms912x_pipe_formats[] = {
 };
 
 static int ms912x_usb_probe(struct usb_interface *interface,
-			    const struct usb_device_id *id)
+                            const struct usb_device_id *id)
 {
-	int ret;
-	struct ms912x_device *ms912x;
-	struct drm_device *dev;
+        int ret;
+        struct ms912x_device *ms912x;
+        struct drm_device *dev;
+        struct usb_device *udev = interface_to_usbdev(interface);
+        struct usb_host_interface *alt = interface->cur_altsetting;
 
-	ms912x = devm_drm_dev_alloc(&interface->dev, &driver,
-				    struct ms912x_device, drm);
-	if (IS_ERR(ms912x))
-		return PTR_ERR(ms912x);
+        /* Log basic device information */
+        dev_info(&interface->dev,
+                 "probe: if=%u class=%u subclass=%u id= %04x:%04x\n",
+                 alt->desc.bInterfaceNumber, alt->desc.bInterfaceClass,
+                 alt->desc.bInterfaceSubClass,
+                 le16_to_cpu(udev->descriptor.idVendor),
+                 le16_to_cpu(udev->descriptor.idProduct));
+        dev_dbg(&interface->dev, "ms912x usb probe\n");
 
-	ms912x->intf = interface;
-	dev = &ms912x->drm;
+        if (alt->desc.bInterfaceNumber != 3 ||
+            alt->desc.bInterfaceClass != USB_CLASS_VENDOR_SPEC) {
+                dev_dbg(&interface->dev, "unsupported interface %u/%u\n",
+                        alt->desc.bInterfaceNumber, alt->desc.bInterfaceClass);
+                return -ENODEV;
+        }
 
-	ms912x->dmadev = usb_intf_get_dma_device(interface);
-	if (!ms912x->dmadev)
-		drm_warn(dev,
-			 "buffer sharing not supported"); /* not an error */
+        ms912x = devm_drm_dev_alloc(&interface->dev, &driver,
+                                    struct ms912x_device, drm);
+        if (IS_ERR(ms912x))
+                return PTR_ERR(ms912x);
 
-	ret = drmm_mode_config_init(dev);
-	if (ret)
-		goto err_put_device;
+        ms912x->intf = interface;
+        dev = &ms912x->drm;
 
-	dev->mode_config.min_width = 0;
-	dev->mode_config.max_width = 2048;
-	dev->mode_config.min_height = 0;
-	dev->mode_config.max_height = 2048;
-	dev->mode_config.funcs = &ms912x_mode_config_funcs;
+        ms912x->dmadev = usb_intf_get_dma_device(interface);
+        if (!ms912x->dmadev)
+                drm_warn(dev,
+                         "buffer sharing not supported"); /* not an error */
 
-	/* This stops weird behavior in the device */
-	ms912x_set_resolution(ms912x, &ms912x_mode_list[0]);
+        ret = drmm_mode_config_init(dev);
+        if (ret)
+                goto err_put_device;
 
-	ret = ms912x_init_request(ms912x, &ms912x->requests[0],
-				  2048 * 2048 * 2);
-	if (ret)
-		goto err_put_device;
+        dev->mode_config.min_width = 0;
+        dev->mode_config.max_width = 2048;
+        dev->mode_config.min_height = 0;
+        dev->mode_config.max_height = 2048;
+        dev->mode_config.funcs = &ms912x_mode_config_funcs;
 
-	ret = ms912x_init_request(ms912x, &ms912x->requests[1],
-				  2048 * 2048 * 2);
-	if (ret)
-		goto err_free_request_0;
-	complete(&ms912x->requests[1].done);
+        /* This stops weird behavior in the device */
+        ms912x_set_resolution(ms912x, &ms912x_mode_list[0]);
 
-	ret = ms912x_connector_init(ms912x);
-	if (ret)
-		goto err_free_request_1;
+        ret = ms912x_init_request(ms912x, &ms912x->requests[0],
+                                  2048 * 2048 * 2);
+        if (ret)
+                goto err_put_device;
 
-	ret = drm_simple_display_pipe_init(&ms912x->drm, &ms912x->display_pipe,
-					   &ms912x_pipe_funcs,
-					   ms912x_pipe_formats,
-					   ARRAY_SIZE(ms912x_pipe_formats),
-					   NULL, &ms912x->connector);
-	if (ret)
-		goto err_free_request_1;
+        ret = ms912x_init_request(ms912x, &ms912x->requests[1],
+                                  2048 * 2048 * 2);
+        if (ret)
+                goto err_free_request_0;
+        complete(&ms912x->requests[1].done);
 
-	drm_plane_enable_fb_damage_clips(&ms912x->display_pipe.plane);
+        ret = ms912x_connector_init(ms912x);
+        if (ret)
+                goto err_free_request_1;
+
+        ret = drm_simple_display_pipe_init(&ms912x->drm, &ms912x->display_pipe,
+                                           &ms912x_pipe_funcs,
+                                           ms912x_pipe_formats,
+                                           ARRAY_SIZE(ms912x_pipe_formats),
+                                           NULL, &ms912x->connector);
+        if (ret)
+                goto err_free_request_1;
+
+        drm_plane_enable_fb_damage_clips(&ms912x->display_pipe.plane);
 
         drm_mode_config_reset(dev); // FIX: correct typo drrm_ -> drm_
 
-	usb_set_intfdata(interface, ms912x);
+        usb_set_intfdata(interface, ms912x);
 
-	drm_kms_helper_poll_init(dev);
+        drm_kms_helper_poll_init(dev);
 
-	ret = drm_dev_register(dev, 0);
-	if (ret)
-		goto err_free_request_1;
+        ret = drm_dev_register(dev, 0);
+        if (ret)
+                goto err_free_request_1;
 
         ms912x_fbdev_setup(dev); // REPLACEMENT: optional fbdev setup
 
-	return 0;
+        dev_info(&interface->dev, "ms912x device bound\n");
+
+        return 0;
 
 err_free_request_1:
-	ms912x_free_request(&ms912x->requests[1]);
+        ms912x_free_request(&ms912x->requests[1]);
 err_free_request_0:
         ms912x_free_request(&ms912x->requests[0]);
 err_put_device:
-        if (ms912x->dmadev) // FIX: release DMA device only if present
-                put_device(ms912x->dmadev); // FIX: drop reference
+        if (ms912x->dmadev)
+                put_device(ms912x->dmadev);
         return ret;
 }
 
 static void ms912x_usb_disconnect(struct usb_interface *interface)
 {
-	struct ms912x_device *ms912x = usb_get_intfdata(interface);
-	struct drm_device *dev = &ms912x->drm;
+        struct ms912x_device *ms912x = usb_get_intfdata(interface);
+        struct drm_device *dev = &ms912x->drm;
+        struct usb_device *udev = interface_to_usbdev(interface);
+        struct usb_host_interface *alt = interface->cur_altsetting;
 
-	cancel_work_sync(&ms912x->requests[0].work);
-	cancel_work_sync(&ms912x->requests[1].work);
-	drm_kms_helper_poll_fini(dev);
-	drm_dev_unplug(dev);
+        dev_info(&interface->dev,
+                 "disconnect: if=%u class=%u subclass=%u id=%04x:%04x\n",
+                 alt->desc.bInterfaceNumber, alt->desc.bInterfaceClass,
+                 alt->desc.bInterfaceSubClass,
+                 le16_to_cpu(udev->descriptor.idVendor),
+                 le16_to_cpu(udev->descriptor.idProduct));
+        dev_dbg(&interface->dev, "ms912x usb disconnect\n");
+
+        cancel_work_sync(&ms912x->requests[0].work);
+        cancel_work_sync(&ms912x->requests[1].work);
+        drm_kms_helper_poll_fini(dev);
+        drm_dev_unplug(dev);
         drm_atomic_helper_shutdown(dev);
         ms912x_free_request(&ms912x->requests[0]);
         ms912x_free_request(&ms912x->requests[1]);
-        if (ms912x->dmadev) { // FIX: ensure DMA device is valid before releasing
-                put_device(ms912x->dmadev); // FIX: drop reference
-                ms912x->dmadev = NULL; // FIX: clear pointer after release
+        if (ms912x->dmadev) {
+                put_device(ms912x->dmadev);
+                ms912x->dmadev = NULL;
         }
+        usb_set_intfdata(interface, NULL);
 }
 
 static const struct usb_device_id id_table[] = {
-	/* USB 2 */
-	{ USB_DEVICE_AND_INTERFACE_INFO(0x534d, 0x6021, 0xff, 0x00, 0x00) },
-	/* USB 2 Sometimes this PID will pop up*/
-	{ USB_DEVICE_AND_INTERFACE_INFO(0x534d, 0x0821, 0xff, 0x00, 0x00) },
-	/* USB 3 */
-	{ USB_DEVICE_AND_INTERFACE_INFO(0x345f, 0x9132, 0xff, 0x00, 0x00) },
-	{},
+        { USB_DEVICE_INTERFACE_NUMBER(0x534d, 0x6021, 3),
+          .bInterfaceClass = USB_CLASS_VENDOR_SPEC,
+          .bInterfaceSubClass = 0x00,
+          .bInterfaceProtocol = 0x00 },
+        { USB_DEVICE_INTERFACE_NUMBER(0x534d, 0x0821, 3),
+          .bInterfaceClass = USB_CLASS_VENDOR_SPEC,
+          .bInterfaceSubClass = 0x00,
+          .bInterfaceProtocol = 0x00 },
+        { USB_DEVICE_INTERFACE_NUMBER(0x345f, 0x9132, 3),
+          .bInterfaceClass = USB_CLASS_VENDOR_SPEC,
+          .bInterfaceSubClass = 0x00,
+          .bInterfaceProtocol = 0x00 },
+        { USB_DEVICE_INTERFACE_NUMBER(0x345f, 0x9133, 3),
+          .bInterfaceClass = USB_CLASS_VENDOR_SPEC,
+          .bInterfaceSubClass = 0x00,
+          .bInterfaceProtocol = 0x00 },
+        { }
 };
 MODULE_DEVICE_TABLE(usb, id_table);
 
 static struct usb_driver ms912x_driver = {
-	.name = "ms912x",
-	.probe = ms912x_usb_probe,
-	.disconnect = ms912x_usb_disconnect,
-	.suspend = ms912x_usb_suspend,
-	.resume = ms912x_usb_resume,
-	.id_table = id_table,
+        .name = "ms912x",
+        .probe = ms912x_usb_probe,
+        .disconnect = ms912x_usb_disconnect,
+        .suspend = ms912x_usb_suspend,
+        .resume = ms912x_usb_resume,
+        .id_table = id_table,
 };
-module_usb_driver(ms912x_driver);
+
+static int __init ms912x_init(void)
+{
+        int ret = usb_register(&ms912x_driver);
+        if (!ret)
+                pr_info("ms912x module loaded\n");
+        return ret;
+}
+
+static void __exit ms912x_exit(void)
+{
+        usb_deregister(&ms912x_driver);
+        pr_info("ms912x module unloaded\n");
+}
+
+module_init(ms912x_init);
+module_exit(ms912x_exit);
 MODULE_LICENSE("GPL");

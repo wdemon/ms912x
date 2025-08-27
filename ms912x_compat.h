@@ -3,16 +3,10 @@
 
 #include <linux/version.h>
 #include <linux/timer.h>
-#include <linux/workqueue.h> // COMPAT: flush_workqueue support
-#include <linux/rcupdate.h> // COMPAT: needed for synchronize_rcu
-#include <linux/jiffies.h> // COMPAT: jiffies helper for mod_timer
-#include <linux/container_of.h>
+#include <linux/workqueue.h> // flush_workqueue support
+#include <linux/rcupdate.h> // needed for synchronize_rcu
+#include <linux/jiffies.h> // jiffies helper for mod_timer
 #include <drm/drm_device.h>
-
-/* REPLACEMENT: provide from_timer macro when missing */
-#ifndef from_timer
-#define from_timer(var, timer, field) container_of(timer, typeof(*var), field)
-#endif
 
 /* REPLACEMENT: safe del_timer_sync analogue for older kernels */
 static inline int ms912x_del_timer_sync(struct timer_list *timer)
