@@ -111,32 +111,36 @@ static const struct ms912x_mode ms912x_mode_list[] = {
 static const struct ms912x_mode *
 ms912x_get_mode(const struct drm_display_mode *mode)
 {
-	int i;
-	int width = mode->hdisplay;
-	int height = mode->vdisplay;
-	int hz = drm_mode_vrefresh(mode);
-	for (i = 0; i < ARRAY_SIZE(ms912x_mode_list); i++) {
-		if (ms912x_mode_list[i].width == width &&
-		    ms912x_mode_list[i].height == height &&
-		    ms912x_mode_list[i].hz == hz) {
-			return &ms912x_mode_list[i];
-		}
-	}
-	return ERR_PTR(-EINVAL);
+        int i;
+        int width = mode->hdisplay;
+        int height = mode->vdisplay;
+        int hz = drm_mode_vrefresh(mode);
+        for (i = 0; i < ARRAY_SIZE(ms912x_mode_list); i++) {
+                if (ms912x_mode_list[i].width == width &&
+                    ms912x_mode_list[i].height == height &&
+                    ms912x_mode_list[i].hz == hz) {
+                        return &ms912x_mode_list[i];
+                }
+        }
+        /* Unknown mode */
+        return NULL;
 }
 
 static void ms912x_pipe_enable(struct drm_simple_display_pipe *pipe,
-			       struct drm_crtc_state *crtc_state,
-			       struct drm_plane_state *plane_state)
+                               struct drm_crtc_state *crtc_state,
+                               struct drm_plane_state *plane_state)
 {
-	struct ms912x_device *ms912x = to_ms912x(pipe->crtc.dev);
-	struct drm_display_mode *mode = &crtc_state->mode;
+        struct ms912x_device *ms912x = to_ms912x(pipe->crtc.dev);
+        struct drm_display_mode *mode = &crtc_state->mode;
+        const struct ms912x_mode *ms_mode;
 
-	ms912x_power_on(ms912x);
+        ms912x_power_on(ms912x);
 
-	if (crtc_state->mode_changed) {
-		ms912x_set_resolution(ms912x, ms912x_get_mode(mode));
-	}
+        if (crtc_state->mode_changed) {
+                ms_mode = ms912x_get_mode(mode);
+                if (ms_mode)
+                        ms912x_set_resolution(ms912x, ms_mode);
+        }
 }
 
 static void ms912x_pipe_disable(struct drm_simple_display_pipe *pipe)
@@ -150,11 +154,12 @@ static enum drm_mode_status
 ms912x_pipe_mode_valid(struct drm_simple_display_pipe *pipe,
                        const struct drm_display_mode *mode)
 {
-	const struct ms912x_mode *ret = ms912x_get_mode(mode);
-	if (IS_ERR(ret)) {
-		return MODE_BAD;
-	}
-	return MODE_OK;
+        const struct ms912x_mode *ret = ms912x_get_mode(mode);
+
+        if (!ret)
+                return MODE_BAD;
+
+        return MODE_OK;
 }
 
 static int ms912x_pipe_check(struct drm_simple_display_pipe *pipe,
@@ -200,12 +205,13 @@ static void ms912x_pipe_update(struct drm_simple_display_pipe *pipe,
 }
 
 static const struct drm_simple_display_pipe_funcs ms912x_pipe_funcs = {
-	.enable = ms912x_pipe_enable,
-	.disable = ms912x_pipe_disable,
-	.check = ms912x_pipe_check,
-	.mode_valid = ms912x_pipe_mode_valid,
-	.update = ms912x_pipe_update,
-	DRM_GEM_SIMPLE_DISPLAY_PIPE_SHADOW_PLANE_FUNCS,
+        .enable = ms912x_pipe_enable,
+        .disable = ms912x_pipe_disable,
+        .check = ms912x_pipe_check,
+        .mode_valid = ms912x_pipe_mode_valid,
+        .prepare_fb = drm_gem_simple_display_pipe_prepare_fb,
+        .cleanup_fb = drm_gem_simple_display_pipe_cleanup_fb,
+        .update = ms912x_pipe_update,
 };
 
 static const uint32_t ms912x_pipe_formats[] = {
