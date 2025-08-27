@@ -16,6 +16,7 @@
 #include <drm/drm_probe_helper.h>
 #include <drm/drm_print.h>
 #include <drm/drm_simple_kms_helper.h>
+#include <drm/drm_shadow.h>
 
 #include "ms912x.h"
 #include "ms912x_compat.h" // REPLACEMENT: compatibility helpers
@@ -133,14 +134,42 @@ static void ms912x_pipe_enable(struct drm_simple_display_pipe *pipe,
         struct ms912x_device *ms912x = to_ms912x(pipe->crtc.dev);
         struct drm_display_mode *mode = &crtc_state->mode;
         const struct ms912x_mode *ms_mode;
+        struct drm_shadow_plane_state *shadow_state;
+        struct drm_framebuffer *fb = plane_state->fb;
+        struct drm_rect rect;
+        int ret;
+
+        drm_dbg(&ms912x->drm, "pipe enable\n");
 
         ms912x_power_on(ms912x);
 
         if (crtc_state->mode_changed) {
                 ms_mode = ms912x_get_mode(mode);
-                if (ms_mode)
+                if (ms_mode) {
                         ms912x_set_resolution(ms912x, ms_mode);
+                } else {
+                        drm_err(&ms912x->drm,
+                                "unsupported mode %dx%d@%d\n",
+                                mode->hdisplay, mode->vdisplay,
+                                drm_mode_vrefresh(mode));
+                }
         }
+
+        if (!fb)
+                return;
+
+        shadow_state = to_drm_shadow_plane_state(plane_state);
+        rect.x1 = 0;
+        rect.y1 = 0;
+        rect.x2 = fb->width;
+        rect.y2 = fb->height;
+
+        ret = ms912x_fb_send_rect(fb, &shadow_state->data[0], &rect);
+        if (ret)
+                drm_err(&ms912x->drm,
+                        "initial frame transfer failed: %d\n", ret);
+
+        ms912x->update_rect = rect;
 }
 
 static void ms912x_pipe_disable(struct drm_simple_display_pipe *pipe)
@@ -166,7 +195,28 @@ static int ms912x_pipe_check(struct drm_simple_display_pipe *pipe,
                              struct drm_plane_state *new_plane_state,
                              struct drm_crtc_state *new_crtc_state)
 {
-	return 0;
+        struct drm_device *dev = pipe->crtc.dev;
+        struct drm_framebuffer *fb = new_plane_state->fb;
+
+        drm_dbg(dev, "atomic_check\n");
+
+        if (fb) {
+                if (fb->format->format != DRM_FORMAT_XRGB8888) {
+                        drm_err(dev, "unsupported format %p4cc\n",
+                                &fb->format->format);
+                        return -EINVAL;
+                }
+
+                if (!ms912x_get_mode(&new_crtc_state->mode)) {
+                        drm_err(dev, "mode %dx%d@%d not supported\n",
+                                new_crtc_state->mode.hdisplay,
+                                new_crtc_state->mode.vdisplay,
+                                drm_mode_vrefresh(&new_crtc_state->mode));
+                        return -EINVAL;
+                }
+        }
+
+        return 0;
 }
 
 static void ms912x_merge_rects(struct drm_rect *dest, struct drm_rect *r1,
@@ -179,32 +229,70 @@ static void ms912x_merge_rects(struct drm_rect *dest, struct drm_rect *r1,
 }
 
 static void ms912x_pipe_update(struct drm_simple_display_pipe *pipe,
-			       struct drm_plane_state *old_state)
+                               struct drm_plane_state *old_state)
 {
-	struct drm_plane_state *state = pipe->plane.state;
-	struct drm_shadow_plane_state *shadow_plane_state =
-		to_drm_shadow_plane_state(state);
-	struct ms912x_device *ms912x;
-	struct drm_rect current_rect, rect;
+        struct drm_plane_state *state = pipe->plane.state;
+        struct drm_shadow_plane_state *shadow_plane_state =
+                to_drm_shadow_plane_state(state);
+        struct ms912x_device *ms912x;
+        struct drm_rect current_rect, rect;
 
-	if (drm_atomic_helper_damage_merged(old_state, state, &current_rect)) {
-		/* The device double buffers, so we need to send the update
-		 * rects of the last two frames.
-		 */
-		ms912x = to_ms912x(state->fb->dev);
-		ms912x_merge_rects(&rect, &current_rect, &ms912x->update_rect);
-		if (ms912x_fb_send_rect(state->fb, &shadow_plane_state->data[0],
-					&rect)) {
-			/* In case of error, merge the rects to update later */
-			ms912x_merge_rects(&ms912x->update_rect,
-					   &ms912x->update_rect, &rect);
-		} else {
-			ms912x->update_rect = current_rect;
-		}
-	}
+        ms912x = to_ms912x(state->fb->dev);
+        drm_dbg(&ms912x->drm, "pipe update\n");
+
+        if (drm_atomic_helper_damage_merged(old_state, state, &current_rect)) {
+                /* The device double buffers, so we need to send the update
+                 * rects of the last two frames.
+                 */
+                ms912x_merge_rects(&rect, &current_rect, &ms912x->update_rect);
+                if (ms912x_fb_send_rect(state->fb, &shadow_plane_state->data[0],
+                                        &rect)) {
+                        /* In case of error, merge the rects to update later */
+                        ms912x_merge_rects(&ms912x->update_rect,
+                                           &ms912x->update_rect, &rect);
+                } else {
+                        ms912x->update_rect = current_rect;
+                }
+        }
+}
+
+static int ms912x_pipe_prepare_fb(struct drm_simple_display_pipe *pipe,
+                                  struct drm_plane_state *plane_state)
+{
+        struct drm_device *dev = pipe->crtc.dev;
+        int ret;
+
+        drm_dbg(dev, "prepare_fb\n");
+
+        ret = drm_gem_simple_display_pipe_prepare_fb(pipe, plane_state);
+        if (ret)
+                drm_err(dev, "prepare_fb failed: %d\n", ret);
+
+        return ret;
+}
+
+static void ms912x_pipe_cleanup_fb(struct drm_simple_display_pipe *pipe,
+                                   struct drm_plane_state *plane_state)
+{
+        drm_dbg(pipe->crtc.dev, "cleanup_fb\n");
+        drm_gem_simple_display_pipe_cleanup_fb(pipe, plane_state);
 }
 
 static const struct drm_simple_display_pipe_funcs ms912x_pipe_funcs = {
+        .prepare_fb = ms912x_pipe_prepare_fb,
+        .cleanup_fb = ms912x_pipe_cleanup_fb,
+        .enable = ms912x_pipe_enable,
+        .disable = ms912x_pipe_disable,
+        .check = ms912x_pipe_check,
+        .mode_valid = ms912x_pipe_mode_valid,
+        .update = ms912x_pipe_update,
+};
+
+/* Initialization structure with the default GEM helpers so the core allocates
+ * shadow plane state for us.  After drm_simple_display_pipe_init() we replace
+ * the function pointer with ms912x_pipe_funcs to gain logging.
+ */
+static const struct drm_simple_display_pipe_funcs ms912x_pipe_init_funcs = {
         DRM_GEM_SIMPLE_DISPLAY_PIPE_SHADOW_PLANE_FUNCS,
         .enable = ms912x_pipe_enable,
         .disable = ms912x_pipe_disable,
@@ -214,7 +302,7 @@ static const struct drm_simple_display_pipe_funcs ms912x_pipe_funcs = {
 };
 
 static const uint32_t ms912x_pipe_formats[] = {
-	DRM_FORMAT_XRGB8888,
+        DRM_FORMAT_XRGB8888,
 };
 
 static int ms912x_usb_probe(struct usb_interface *interface,
@@ -291,12 +379,18 @@ static int ms912x_usb_probe(struct usb_interface *interface,
                 goto err_free_request_1;
 
         ret = drm_simple_display_pipe_init(&ms912x->drm, &ms912x->display_pipe,
-                                           &ms912x_pipe_funcs,
+                                           &ms912x_pipe_init_funcs,
                                            ms912x_pipe_formats,
                                            ARRAY_SIZE(ms912x_pipe_formats),
                                            NULL, &ms912x->connector);
         if (ret)
                 goto err_free_request_1;
+
+        /* After initialization replace the pipe callbacks with our logging
+         * variants.  drm_simple_display_pipe_init() already allocated shadow
+         * plane state because we passed the GEM helpers above.
+         */
+        ms912x->display_pipe.funcs = &ms912x_pipe_funcs;
 
         drm_plane_enable_fb_damage_clips(&ms912x->display_pipe.plane);
 
